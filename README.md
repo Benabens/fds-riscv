@@ -1,74 +1,177 @@
-# fds-riscv
+# rv32i-cpu
 
-**RV32I assembly programs, and the assembler and simulator that run them** — written in pure Python and RISC-V assembly, with every program checked against an independent reference.
+**A RISC-V processor in Verilog, in two versions (single-cycle and multicycle), that runs real assembly programs.** It is checked instruction by instruction against an assembler and simulator I wrote from scratch.
 
-A personal project built around the RISC-V part of **CS-173 — Fundamentals of Digital Systems** (EPFL, second year). It is not a graded project: it takes the course's computer-architecture chapter (the RV32I instruction set, memory access, branches, the calling convention) and goes well beyond the exercise sessions. It is the companion of [fds-digital-logic](https://github.com/Benabens/fds-digital-logic), which covers the digital-logic part of the same course in Verilog.
+A personal project built on the computer-architecture chapter of **CS-173: Fundamentals of Digital Systems** (EPFL, second year). The course draws the single-cycle and multicycle RV32I datapaths on paper; this repository builds both, writes the programs they run, and proves they agree with a reference model. It follows [fds-digital-logic](https://github.com/Benabens/fds-digital-logic), which covers the digital-logic half of the same course.
 
-> `RV32I base only — no M extension` · Python 3.10+ standard library only · assembler + simulator + encoder · systematic tests
-
-> **Status:** the toolchain is complete; the programs below are being added to this repository progressively, each one together with its tests.
+> `RV32I base ISA` · Verilog-2005 (Icarus Verilog) · Python 3.10+ standard library only · zero lint warnings · 1.1 M instructions co-simulated per run
 
 ---
+
+## It runs this
+
+The Mandelbrot set, computed by the Verilog CPU in Q22.10 fixed point. RV32I has no multiply instruction, so the program multiplies with a table of quarter squares that it builds itself at start-up.
+
+```
+             ...........:::::::::::::::::::::::::----------::::::.............
+            .........:::::::::::::::::::::::------==+*+===-----::::::.........
+           .......::::::::::::::::::::::--------=====*#*+**=------::::::......
+          .....::::::::::::::::::::::----------====+++*##*+===------::::::....
+         ....::::::::::::::::::::::----------=====+*##@@%***====------::::::..
+        ...::::::::::::::::::::::---------======++*#@@@@@@%*+======----:::::::
+       ...::::::::::::::::::::---------===+++++++**#@@@@@@#*+++=======--::::::
+      ..::::::::::::::::::::-------=====+*@@#**@@#@@@@@@@@@%@#@*+++*@+=--:::::
+      .::::::::::::::::::----===========+*@@@@@@@@@@@@@@@@@@@@@@#@@@@#==--::::
+     .::::::::::::::::---=============++**#@@@@@@@@@@@@@@@@@@@@@@@@@%+===--:::
+     ::::::::::::----=++===========+++*#@@@@@@@@@@@@@@@@@@@@@@@@@@@%#++==---::
+    .::::::-------=====#*++++%#++++++*@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@#*=---::
+    ::::--------======++*%@%##@%##****@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#*+=----:
+    :---------======+++**#@@@@@@@@@@##@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%==----:
+   :--------======+%***#%@@@@@@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+==----:
+   --==========+++**%%@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+===----:
+   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#*++===----:
+   --==========+++**%%@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+===----:
+   :--------======+%***#%@@@@@@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+==----:
+    :---------======+++**#@@@@@@@@@@##@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%==----:
+    ::::--------======++*%@%##@%##****@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#*+=----:
+    .::::::-------=====#*++++%#++++++*@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@#*=---::
+     ::::::::::::----=++===========+++*#@@@@@@@@@@@@@@@@@@@@@@@@@@@%#++==---::
+     .::::::::::::::::---=============++**#@@@@@@@@@@@@@@@@@@@@@@@@@%+===--:::
+      .::::::::::::::::::----===========+*@@@@@@@@@@@@@@@@@@@@@@#@@@@#==--::::
+      ..::::::::::::::::::::-------=====+*@@#**@@#@@@@@@@@@%@#@*+++*@+=--:::::
+       ...::::::::::::::::::::---------===+++++++**#@@@@@@#*+++=======--::::::
+        ...::::::::::::::::::::::---------======++*#@@@@@@%*+======----:::::::
+         ....::::::::::::::::::::::----------=====+*##@@%***====------::::::..
+          .....::::::::::::::::::::::----------====+++*##*+===------::::::....
+           .......::::::::::::::::::::::--------=====*#*+**=------::::::......
+            .........:::::::::::::::::::::::------==+*+===-----::::::.........
+             ...........:::::::::::::::::::::::::----------::::::.............
+```
+
+952,702 instructions: 952,702 cycles on the single-cycle core and 3,786,515 on the multicycle core (CPI 3.97). The output is byte-identical to the reference simulator's, and so is every register write along the way.
+
+Two more demos ship with it. `primes.s` is a sieve of Eratosthenes up to 2000, with right-aligned printing and no division. `automata.s` runs elementary cellular automata (rules 90 and 30), with 32 cells updated per instruction using bitwise logic:
+
+```
+Rule 90: new cell = left XOR right  (Pascal's triangle mod 2)
+                               #
+                              # #
+                             #   #
+                            # # # #
+                           #       #
+                          # #     # #
+                         #   #   #   #
+                        # # # # # # # #
+                       #               #
+                      # #             # #
+                     #   #           #   #
+                    # # # #         # # # #
+                   #       #       #       #
+                  # #     # #     # #     # #
+                 #   #   #   #   #   #   #   #
+                # # # # # # # # # # # # # # # #
+```
 
 ## Try it
 
 ```bash
-python3 -m unittest discover -s tests -t .           # the whole test suite
+python3 -m unittest discover -s tests -t .                 # everything: toolchain, programs, both cores
 
-python3 -m rvsim run programs/functions/hanoi.s       # run a program's demo
-python3 -m rvsim run programs/arith/divide.s --regs   # ...and dump the registers
-python3 -m rvsim encode "beq t0, t1, 42"              # 0x02628563
-python3 -m rvsim decode 0x00C9A383                    # lw t2, 12(s3)
+python3 sim/cosim.py programs/demo/mandelbrot.s --core multi   # run a program on the Verilog CPU and compare
+python3 sim/run_all.py                                     # full co-simulation campaign + CPI table
+
+python3 -m rvsim run programs/demo/primes.s                # the reference simulator
+python3 -m rvsim encode "beq t0, t1, 42"                   # 0x02628563
 ```
 
-No installation and no dependency: everything runs on the Python standard library.
+Requires Python 3.10+ and [Icarus Verilog](https://steveicarus.github.io/iverilog/) (`brew install icarus-verilog` / `apt install iverilog`). Nothing else.
+
+## The processor — `rtl/`
+
+Both cores share the same building blocks and the same external interface. They differ only in how an instruction travels through the datapath.
+
+| Module | Role |
+|---|---|
+| `alu.v` | add/sub, the shifts (logical and arithmetic, shift amount taken from the low 5 bits), slt/sltu, and/or/xor |
+| `regfile.v` | 32 × 32-bit registers, two read ports, one write port, `x0` hard-wired to zero |
+| `imm_gen.v` | rebuilds the immediate of the I, S, B, U and J formats, including the scrambled branch/jump bit fields |
+| `control.v` | main decoder: opcode/funct3/funct7 → datapath control signals, illegal-instruction detection |
+| `branch_unit.v` | the six branch conditions |
+| `load_store_unit.v` | byte/half/word access with sign or zero extension, byte enables, misalignment detection |
+| `memory.v` | instruction ROM (16 KiB at `0x0`), data RAM (64 KiB at `0x10000000`), stack (64 KiB below `0x80000000`) |
+| `cpu_single_cycle.v` | one instruction per clock cycle (CPI = 1) |
+| `multicycle_control.v` + `cpu_multi_cycle.v` | finite-state machine, one datapath step per cycle, shared ALU |
+
+### Multicycle core
+
+Each instruction takes only the steps it needs: FETCH → DECODE → EXECUTE → MEMORY → WRITEBACK. The ALU is reused across steps (it computes `pc + imm` during DECODE and the operation or address during EXECUTE). The datapath registers IR, A, B, ALUOut and MDR hold values between cycles.
+
+| Instruction class | States | Cycles |
+|---|---|---|
+| `fence`, `ecall`, `ebreak` | F D | 2 |
+| branches, `jal` | F D E / F D W | 3 |
+| ALU ops, `lui`, `auipc`, `jalr`, stores | F D E W / F D E M | 4 |
+| loads | F D E M W | 5 |
+
+The state diagram is drawn in the header of `multicycle_control.v`. Measured CPI on real programs:
+
+| Program | Instructions | Single-cycle cycles | Multicycle cycles | CPI |
+|---|---:|---:|---:|---:|
+| `arith/isqrt` | 333 | 333 | 1,186 | 3.56 |
+| `arith/gcd` | 863 | 863 | 3,133 | 3.63 |
+| `control/bubble_sort` | 338 | 338 | 1,264 | 3.74 |
+| `functions/hanoi` | 359 | 359 | 1,413 | 3.94 |
+| `functions/fibonacci` | 22,788 | 22,788 | 92,102 | 4.04 |
+| `demo/mandelbrot` | 952,702 | 952,702 | 3,786,515 | 3.97 |
+
+Recursive code is the most expensive (CPI ≈ 4), because saving and restoring registers on the stack is all 5-cycle loads and 4-cycle stores. Pure arithmetic loops, where branches only cost 3 cycles, come out cheapest. The multicycle core still has a shorter critical path per cycle, which is the whole trade-off the course discusses.
+
+## How it is verified — `sim/`
+
+**Co-simulation, one instruction at a time.** The testbench (`tb_cpu.v`) loads a program image and logs a *commit trace*: for every retired instruction, its pc, the machine word, the register written and its value, and any memory store. `cosim.py` runs the same program in the reference simulator and compares the two traces line by line. The first divergence is reported with the disassembled instruction, which makes a wrong mux select or a mis-sign-extended load obvious within seconds.
+
+`run_all.py` runs this comparison on three sources of programs, for both cores:
+
+- **all the programs in `programs/`** (below), 37 of them;
+- **26 directed tests** for corner cases: writes to `x0`, sign and zero extension of every load, far jumps and branches, `lui`/`auipc`/`jalr`, and every trap. The traps covered are misaligned loads, stores and jumps, jumps out of the program, bad `ecall`s, and 12 illegal encodings (`csrrw`, an M-extension `mul`, `fence.i`, a wrong `funct7`, the all-zero word…);
+- **250 random programs** from fixed seeds. They start from register values biased towards 0, −1, `INT_MIN` and `INT_MAX`, and run every ALU operation, loads and stores of every width and alignment, and forward branches and jumps, including `jalr` with an odd target.
+
+Each campaign compares 1,134,579 retired instructions per core and finds zero mismatches.
+
+**Mutation testing.** `mutation_check.py` injects 23 known bugs into copies of the RTL and checks that the campaign catches every one. Examples: `sltu` computed as signed, `sra` as a logical shift, `lb` zero-extending, `jalr` not clearing bit 0, `x0` writable, a load skipping writeback, the pc updated in the wrong FSM state, a store issued twice, operands latched one state too early. 23 of 23 are caught.
 
 ## The toolchain — `rvsim/`
 
+Written from scratch, it is the reference model and the build system for the CPU.
+
 | Module | What it does |
 |---|---|
-| `assembler.py` | Two-pass assembler: labels, `.text` / `.data`, `.word` `.half` `.byte` `.ascii` `.asciz` `.space` `.align`, and the usual pseudo-instructions (`li` with correct `lui`/`addi` splitting, `la`, `call`, `ret`, `mv`, `not`, `neg`, `beqz`, `bgt`…). Errors report the source line. |
-| `encoding.py` | Encodes every RV32I instruction to its 32-bit word and decodes it back, across the six formats (R, I, S, B, U, J), including the scrambled immediate fields of branches and jumps. |
-| `cpu.py` | Simulator executing the actual machine words fetched from little-endian, byte-addressable memory: 32 registers with `x0` hard-wired to zero, misaligned-access detection, a few `ecall` services (print, exit). |
-
-The encoder is tested against encodings taken straight from the RISC-V specification, and the ALU against reference arithmetic with explicit 32-bit masking — including the classic traps: `sra` vs `srl` on negative numbers, `slt` vs `sltu`, shift amounts that only use the low five bits.
+| `assembler.py` | two-pass assembler: labels, `.text`/`.data`, `.word .half .byte .ascii .asciz .space .align`, and the usual pseudo-instructions (`li` with correct `lui`/`addi` splitting, `la`, `call`, `ret`, `mv`, `beqz`, `bgt`…) |
+| `encoding.py` | encodes and decodes every RV32I instruction, checked against encodings from the RISC-V specification |
+| `cpu.py` | instruction-set simulator on little-endian, byte-addressable memory, with misaligned-access detection and `ecall` services (print, exit) |
+| `trace.py`, `hexfile.py` | commit-trace output and `$readmemh` memory images for the testbench |
 
 ## The programs — `programs/`
 
-Every program is a set of routines that follow the standard calling convention (arguments in `a0`–`a7`, result in `a0`/`a1`, callee-saved registers preserved), plus a short `_start` demo.
+These programs are both what the CPU runs and the CPU's test suite. Each one is a set of routines following the standard calling convention, and each has its own test file that calls those routines directly with hundreds of inputs. Expected values always come from plain Python (`math.isqrt`, `math.gcd`, `sorted`, `bisect`…), never from the assembly itself, and the test harness fails any routine that does not restore `s0`–`s11`.
 
-**`bits/`** — bit manipulation: swapping two registers with three XORs, population count, bit reversal, parity, power-of-two test, count leading zeros, rotations, byte swap (endianness).
-
-**`arith/`** — arithmetic with nothing but the base instruction set: absolute value without a branch or a subtraction, signed-overflow detection from the operand and result signs, 64-bit addition with the carry rebuilt by `sltu`, shift-and-add multiplication, restoring division (with the divide-by-zero result the RISC-V spec mandates), Euclid's GCD, integer square root, Q16.16 fixed-point multiplication.
-
-**`memory/`** — loads, stores and addressing: array sums (one stopping at the first signed overflow), counting sign mismatches between two arrays, element-wise absolute difference without any `sub`/`neg`, min/max, matrix maximum with its row and column, matrix transpose, `memcpy` (word-at-a-time when aligned, byte-wise otherwise), `strlen`, in-place string reversal, upper-casing.
-
-**`control/`** — loops and branches: bubble sort with early exit, binary search returning the first occurrence, character counting.
-
-**`functions/`** — the stack and recursion: recursive factorial, iterative and recursive Fibonacci (cross-checked), Towers of Hanoi writing its move list to memory, digit sum with a hand-written divide-by-10.
-
-## How the programs are tested
-
-`tests/programs/harness.py` calls a routine *directly* from Python: it assembles the file, points the program counter at the routine's label, loads the arguments, and stops when the routine returns. A single program can therefore be checked against hundreds of inputs rather than the one hard-coded in its demo.
-
-- **Edge cases first**: 0, 1, −1, `INT_MIN`, `INT_MAX`, `0xFFFFFFFF`, empty arrays and strings, single elements, duplicates, already-sorted and reverse-sorted inputs, 1×N and N×1 matrices.
-- **Then randomised inputs** with a fixed seed.
-- **Independent references only**: the expected value always comes from plain Python (`bin(x).count("1")`, `//` and `%`, `math.isqrt`, `math.gcd`, `sorted`, `bisect`, `fractions.Fraction`…), never from the assembly under test.
-- **The calling convention is enforced**: the harness fills `s0`–`s11` with marker values and fails the test if a routine returns without restoring them. Output buffers are followed by a guard word to catch out-of-bounds writes.
-- **Mutation testing**: faults were deliberately injected into copies of the programs (a wrong mask, `srai` instead of `srli`, a missing restore, an off-by-one loop) to confirm that the tests catch them.
+- **`bits/`**: XOR swap, population count, bit reversal, parity, power-of-two test, count leading zeros, rotations, byte swap.
+- **`arith/`**: branch-free absolute value, signed-overflow detection, 64-bit addition with the carry rebuilt by `sltu`, shift-and-add multiplication, restoring division, GCD, integer square root, Q16.16 multiplication.
+- **`memory/`**: array sums and min/max, matrix maximum and transpose, `memcpy` (word-wise when aligned), `strlen`, string reversal, upper-casing.
+- **`control/`**: bubble sort with early exit, binary search for the first occurrence, character counting.
+- **`functions/`**: recursive factorial, Fibonacci (iterative and recursive), Towers of Hanoi, digit sum with a hand-written divide-by-10.
+- **`demo/`**: Mandelbrot, prime sieve, cellular automata.
 
 ## Layout
 
 ```
-rvsim/              assembler, encoder, simulator, command-line interface
-programs/bits/      bit manipulation
-programs/arith/     arithmetic without the M extension
-programs/memory/    arrays, matrices, strings
-programs/control/   sorting and searching
-programs/functions/ recursion and the stack
-tests/              toolchain tests and one test file per program
+rtl/        the processor: shared blocks, single-cycle core, multicycle core + FSM
+sim/        testbench, co-simulation, directed and random tests, mutation testing
+rvsim/      assembler, encoder, reference simulator, command-line interface
+programs/   assembly programs: the CPU's workload and test suite
+tests/      unit tests for everything above
 ```
 
 ## Context
 
-CS-173 is taught by Prof. Mirjana Stojilović at EPFL. Its final chapter introduces computer architecture through the RV32I instruction set: integer computation, memory access and branches, assembler directives, and single-cycle and multicycle processor implementations. The exercise sessions used a browser-based simulator; this repository rebuilds the toolchain from scratch and applies it to a broader set of problems.
+CS-173 is taught by Prof. Mirjana Stojilović at EPFL. Its final chapter introduces computer architecture through RV32I: the instruction set, assembly programming, and the single-cycle and multicycle implementations of the processor. This project takes that chapter from the whiteboard to working, verified hardware.
