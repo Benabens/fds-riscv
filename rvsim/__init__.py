@@ -15,10 +15,13 @@ Quick start::
 from .assembler import DATA_BASE, TEXT_BASE, AssemblerError, Program, assemble
 from .cpu import CPU, STACK_TOP, Memory, SimulationError, StepLimitExceeded, run_source
 from .encoding import EncodingError, decode, decode_fields, encode, encode_fields
+from .hexfile import hex_words, read_meta, write_build
+from .trace import Commit, Trace, trace_program, trace_source
 
 __all__ = [
     "AssemblerError",
     "CPU",
+    "Commit",
     "DATA_BASE",
     "EncodingError",
     "Memory",
@@ -27,10 +30,16 @@ __all__ = [
     "SimulationError",
     "StepLimitExceeded",
     "TEXT_BASE",
+    "Trace",
     "assemble",
     "decode",
     "decode_fields",
     "encode",
     "encode_fields",
+    "hex_words",
+    "read_meta",
     "run_source",
+    "trace_program",
+    "trace_source",
+    "write_build",
 ]

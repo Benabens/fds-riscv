@@ -38,11 +38,24 @@ DEFAULT_MAX_STEPS = 100_000
 
 
 class SimulationError(Exception):
-    """Runtime fault: misaligned access, illegal instruction, bad jump, ..."""
+    """Runtime fault: misaligned access, illegal instruction, bad jump, ...
+
+    ``kind`` is a short machine-readable tag for the fault (``"fetch"``,
+    ``"illegal-instruction"``, ``"misaligned-access"``, ``"misaligned-jump"``,
+    ``"ecall-service"``, ``"timeout"``); the commit trace and the hardware
+    testbench use the same tags so that their final lines can be compared.
+    """
+
+    def __init__(self, message: str, kind: str = "error") -> None:
+        super().__init__(message)
+        self.kind = kind
 
 
 class StepLimitExceeded(SimulationError):
     """The program did not halt within the allowed number of steps."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, "timeout")
 
 
 def _signed(value: int) -> int:
@@ -275,7 +288,8 @@ class CPU:
         # fence: no observable effect on a single in-order hart
 
         if next_pc % 4:
-            raise SimulationError(f"{self._where(pc)}jump target 0x{next_pc:08x} is not 4-byte aligned")
+            raise SimulationError(f"{self._where(pc)}jump target 0x{next_pc:08x} is not 4-byte aligned",
+                                  "misaligned-jump")
         self.pc = next_pc
         self.steps += 1
         return not self.halted
@@ -300,23 +314,24 @@ class CPU:
 
     def _fetch(self, pc: int) -> Decoded:
         if pc % 4:
-            raise SimulationError(f"{self._where(pc)}misaligned pc")
+            raise SimulationError(f"{self._where(pc)}misaligned pc", "fetch")
         if not self.program.text_base <= pc < self._text_end:
-            raise SimulationError(f"{self._where(pc)}pc is outside the text section")
+            raise SimulationError(f"{self._where(pc)}pc is outside the text section", "fetch")
         word = self.memory.read(pc, 4)
         decoded = self._decoded.get(word)
         if decoded is None:
             try:
                 decoded = self._decoded[word] = decode_fields(word)
             except EncodingError as exc:
-                raise SimulationError(f"{self._where(pc)}{exc}") from None
+                raise SimulationError(f"{self._where(pc)}{exc}", "illegal-instruction") from None
         return decoded
 
     def _check_alignment(self, address: int, size: int, pc: int | None) -> None:
         if address % size:
             where = self._where(pc) if pc is not None else ""
             kind = {2: "halfword", 4: "word"}[size]
-            raise SimulationError(f"{where}misaligned {kind} access at 0x{address:08x}")
+            raise SimulationError(f"{where}misaligned {kind} access at 0x{address:08x}",
+                                  "misaligned-access")
 
     def _load(self, address: int, size: int, pc: int | None = None) -> int:
         address &= MASK32
@@ -341,7 +356,8 @@ class CPU:
         elif service == 93:
             self.halted, self.exit_code = True, _signed(a0)
         else:
-            raise SimulationError(f"{self._where(pc)}unsupported ecall service a7={service}")
+            raise SimulationError(f"{self._where(pc)}unsupported ecall service a7={service}",
+                                  "ecall-service")
 
 
 def run_source(source: str, max_steps: int = DEFAULT_MAX_STEPS) -> CPU:
