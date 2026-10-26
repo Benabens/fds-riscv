@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# local publishing scripts (not part of the project)
+riscv-daily.sh
+riscv-auto.sh
+.riscv-order
+.riscv-last-push
+.riscv-daily.log
